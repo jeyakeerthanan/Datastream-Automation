@@ -1,0 +1,61 @@
+name: datastream-operations
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "start | pause | resume"
+        required: true
+        default: "start"
+      stream_id:
+        description: "Stream ID (e.g., mysql-to-bq-dev)"
+        required: true
+        default: "mysql-to-bq-dev"
+      location:
+        description: "Datastream location (e.g., us-central1)"
+        required: true
+        default: "us-central1"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Auth to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Execute operation
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          LOCATION: ${{ github.event.inputs.location }}
+          STREAM_ID: ${{ github.event.inputs.stream_id }}
+          OP: ${{ github.event.inputs.operation }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$OP" == "start" ]]; then
+            gcloud datastream streams start "$STREAM_ID" \
+              --project="$PROJECT_ID" \
+              --location="$LOCATION"
+          elif [[ "$OP" == "pause" ]]; then
+            gcloud datastream streams pause "$STREAM_ID" \
+              --project="$PROJECT_ID" \
+              --location="$LOCATION"
+          elif [[ "$OP" == "resume" ]]; then
+            gcloud datastream streams resume "$STREAM_ID" \
+              --project="$PROJECT_ID" \
+              --location="$LOCATION"
+          else
+            echo "Invalid operation: $OP"
+            exit 1
+          fi
