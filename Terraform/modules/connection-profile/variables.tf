@@ -9,15 +9,15 @@ variable "labels" {
   default = {}
 }
 
-# MYSQL | ORACLE | POSTGRESQL | BIGQUERY | GCS
-variable "type" { type = string }
+variable "type" { type = string } # SQLSERVER or BIGQUERY
 
-variable "mysql" {
+variable "sqlserver" {
   type = object({
     hostname = string
     port     = number
     username = string
     password = string
+    database = string
   })
   default = null
 }

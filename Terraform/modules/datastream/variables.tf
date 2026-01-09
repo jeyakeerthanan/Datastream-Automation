@@ -12,35 +12,27 @@ variable "labels" {
 variable "source_connection_profile"      { type = string }
 variable "destination_connection_profile" { type = string }
 
-variable "desired_state" {
-  type    = string
-  default = "PAUSED"
-  validation {
-    condition     = contains(["PAUSED", "RUNNING"], var.desired_state)
-    error_message = "desired_state must be PAUSED or RUNNING"
-  }
-}
+variable "desired_state" { type = string }
 
-# MySQL source config (reference implementation)
-variable "mysql_source_config" {
+variable "sqlserver_source_config" {
   type = object({
     max_concurrent_cdc_tasks      = number
     max_concurrent_backfill_tasks = number
     include_objects = list(object({
-      database = string
-      tables   = list(string)
+      schema = string
+      tables = list(string)
     }))
     exclude_objects = list(object({
-      database = string
-      tables   = list(string)
+      schema = string
+      tables = list(string)
     }))
+    cdc_method = string
   })
-  default = null
 }
 
 variable "bigquery_destination_config" {
   type = object({
-    data_freshness = string
+    data_freshness    = string
+    stream_write_mode = string # MERGE or APPEND_ONLY
   })
-  default = null
 }

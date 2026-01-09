@@ -1,7 +1,3 @@
-locals {
-  is_mysql = var.mysql_source_config != null
-}
-
 resource "google_datastream_stream" "this" {
   provider = google-beta
 
@@ -16,48 +12,51 @@ resource "google_datastream_stream" "this" {
   source_config {
     source_connection_profile = var.source_connection_profile
 
-    dynamic "mysql_source_config" {
-      for_each = local.is_mysql ? [1] : []
-      content {
-        max_concurrent_cdc_tasks      = var.mysql_source_config.max_concurrent_cdc_tasks
-        max_concurrent_backfill_tasks = var.mysql_source_config.max_concurrent_backfill_tasks
+    sql_server_source_config {
+      max_concurrent_cdc_tasks      = var.sqlserver_source_config.max_concurrent_cdc_tasks
+      max_concurrent_backfill_tasks = var.sqlserver_source_config.max_concurrent_backfill_tasks
 
-        mysql_objects {
-          dynamic "database_datastream_objects" {
-            for_each = var.mysql_source_config.include_objects
-            content {
-              database = database_datastream_objects.value.database
-
-              dynamic "table_datastream_objects" {
-                for_each = toset(database_datastream_objects.value.tables)
-                content {
-                  table = table_datastream_objects.value
-                }
-              }
-            }
-          }
-        }
-
-        dynamic "exclude_objects" {
-          for_each = length(var.mysql_source_config.exclude_objects) > 0 ? [1] : []
+      include_objects {
+        dynamic "schemas" {
+          for_each = var.sqlserver_source_config.include_objects
           content {
-            mysql_objects {
-              dynamic "database_datastream_objects" {
-                for_each = var.mysql_source_config.exclude_objects
-                content {
-                  database = database_datastream_objects.value.database
+            schema = schemas.value.schema
+            dynamic "tables" {
+              for_each = toset(schemas.value.tables)
+              content {
+                table = tables.value
+              }
+            }
+          }
+        }
+      }
 
-                  dynamic "table_datastream_objects" {
-                    for_each = toset(database_datastream_objects.value.tables)
-                    content {
-                      table = table_datastream_objects.value
-                    }
-                  }
+      dynamic "exclude_objects" {
+        for_each = length(var.sqlserver_source_config.exclude_objects) > 0 ? [1] : []
+        content {
+          dynamic "schemas" {
+            for_each = var.sqlserver_source_config.exclude_objects
+            content {
+              schema = schemas.value.schema
+              dynamic "tables" {
+                for_each = toset(schemas.value.tables)
+                content {
+                  table = tables.value
                 }
               }
             }
           }
         }
+      }
+
+      dynamic "change_tables" {
+        for_each = var.sqlserver_source_config.cdc_method == "CHANGE_TABLES" ? [1] : []
+        content {}
+      }
+
+      dynamic "transaction_logs" {
+        for_each = var.sqlserver_source_config.cdc_method == "TRANSACTION_LOGS" ? [1] : []
+        content {}
       }
     }
   }
@@ -65,11 +64,9 @@ resource "google_datastream_stream" "this" {
   destination_config {
     destination_connection_profile = var.destination_connection_profile
 
-    dynamic "bigquery_destination_config" {
-      for_each = var.bigquery_destination_config != null ? [1] : []
-      content {
-        data_freshness = var.bigquery_destination_config.data_freshness
-      }
+    bigquery_destination_config {
+      data_freshness    = var.bigquery_destination_config.data_freshness
+      stream_write_mode = var.bigquery_destination_config.stream_write_mode
     }
   }
 

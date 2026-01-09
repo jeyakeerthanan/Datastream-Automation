@@ -6,7 +6,6 @@ on:
     paths:
       - "terraform/**"
       - ".github/workflows/terraform-apply.yml"
-  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -15,14 +14,20 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
 
+      TF_VAR_sql_passwords: >-
+        {
+          "MEDINA_SQL_PASSWORD":"${{ secrets.MEDINA_SQL_PASSWORD }}",
+          "D365_SQL_PASSWORD":"${{ secrets.D365_SQL_PASSWORD }}"
+        }
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Auth to GCP (WIF)
         uses: google-github-actions/auth@v2
@@ -30,8 +35,7 @@ jobs:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.5
 
@@ -42,6 +46,60 @@ jobs:
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="prefix=datastream/dev"
 
+      - name: Detect changes and build strict targets
+        id: targets
+        working-directory: terraform/envs/dev
+        run: |
+          set -euo pipefail
+
+          git diff --name-only ${{ github.event.before }} ${{ github.sha }} > /tmp/changed.txt || true
+
+          TARGETS=""
+
+          # 1) Source CP changes -> target only those CPs
+          while read -r f; do
+            [[ -z "$f" ]] && continue
+            if [[ "$f" =~ ^terraform/envs/dev/connection-profiles/sources/.*\.yml$ ]]; then
+              cp_key=$(grep -E '^key:' "$f" | head -n1 | awk '{print $2}')
+              TARGETS="${TARGETS} -target=module.source_cp_sqlserver[\"${cp_key}\"]"
+            fi
+          done < /tmp/changed.txt
+
+          # 2) Destination CP changes -> target only destination CP
+          if grep -qE '^terraform/envs/dev/connection-profiles/destination/.*\.yml$' /tmp/changed.txt; then
+            TARGETS="${TARGETS} -target=module.dest_cp_bigquery"
+          fi
+
+          # 3) Stream changes -> target only streams (no CP touch)
+          while read -r f; do
+            [[ -z "$f" ]] && continue
+            if [[ "$f" =~ ^terraform/envs/dev/streams/.*\.yml$ ]]; then
+              base=$(basename "$f")
+              stream_key="${base%.yml}"
+              TARGETS="${TARGETS} -target=module.datastream_streams[\"${stream_key}\"]"
+            fi
+          done < /tmp/changed.txt
+
+          TARGETS=$(echo "$TARGETS" | xargs || true)
+
+          if [[ -z "$TARGETS" ]]; then
+            echo "targets=ALL" >> $GITHUB_OUTPUT
+          else
+            echo "targets=$TARGETS" >> $GITHUB_OUTPUT
+          fi
+
       - name: Terraform Apply
         working-directory: terraform/envs/dev
-        run: terraform apply -auto-approve -var-file="dev.tfvars"
+        env:
+          TARGETS: ${{ steps.targets.outputs.targets }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$TARGETS" ]]; then
+            echo "No relevant YAML changes detected. Skipping terraform apply."
+            exit 0
+          fi
+
+          echo "Running targeted apply: $TARGETS"
+          terraform apply -auto-approve -var-file="dev.tfvars" $TARGETS
+      

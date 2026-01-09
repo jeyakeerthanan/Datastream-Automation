@@ -1,20 +1,19 @@
-name: datastream-operations
+name: datastream-ops
 
 on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "start | pause | resume"
+        description: "pause | resume | restart"
         required: true
-        default: "start"
+        default: "restart"
       stream_id:
-        description: "Stream ID (e.g., mysql-to-bq-dev)"
+        description: "Datastream Stream ID (example: dev-medina-p1-append)"
         required: true
-        default: "mysql-to-bq-dev"
       location:
-        description: "Datastream location (e.g., us-central1)"
+        description: "Datastream location (example: europe-west2)"
         required: true
-        default: "us-central1"
+        default: "europe-west2"
 
 permissions:
   contents: read
@@ -23,7 +22,6 @@ permissions:
 jobs:
   ops:
     runs-on: ubuntu-latest
-
     steps:
       - name: Auth to GCP (WIF)
         uses: google-github-actions/auth@v2
@@ -43,19 +41,31 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [[ "$OP" == "start" ]]; then
-            gcloud datastream streams start "$STREAM_ID" \
-              --project="$PROJECT_ID" \
-              --location="$LOCATION"
-          elif [[ "$OP" == "pause" ]]; then
-            gcloud datastream streams pause "$STREAM_ID" \
-              --project="$PROJECT_ID" \
-              --location="$LOCATION"
-          elif [[ "$OP" == "resume" ]]; then
-            gcloud datastream streams resume "$STREAM_ID" \
-              --project="$PROJECT_ID" \
-              --location="$LOCATION"
+          echo "Operation: ${OP}"
+          echo "Stream: ${STREAM_ID}"
+          echo "Location: ${LOCATION}"
+          echo "Project: ${PROJECT_ID}"
+
+          if [[ "${OP}" == "pause" ]]; then
+            gcloud datastream streams pause "${STREAM_ID}" --project="${PROJECT_ID}" --location="${LOCATION}"
+          elif [[ "${OP}" == "resume" ]]; then
+            gcloud datastream streams resume "${STREAM_ID}" --project="${PROJECT_ID}" --location="${LOCATION}"
+          elif [[ "${OP}" == "restart" ]]; then
+            gcloud datastream streams pause "${STREAM_ID}" --project="${PROJECT_ID}" --location="${LOCATION}" || true 
+            echo "Waiting 10 minutes before resuming..."
+            sleep 600
+            echo "Resuming stream..."  redo
+#          if hard restart required we have to use that one - later
+            gcloud datastream streams resume "${STREAM_ID}" --project="${PROJECT_ID}" --location="${LOCATION}"
           else
-            echo "Invalid operation: $OP"
+            echo "Invalid operation: ${OP}. Expected pause | resume | restart"
             exit 1
           fi
+
+      - name: Describe stream (post-check)
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          LOCATION: ${{ github.event.inputs.location }}
+          STREAM_ID: ${{ github.event.inputs.stream_id }}
+        run: |
+          gcloud datastream streams describe "${STREAM_ID}" --project="${PROJECT_ID}" --location="${LOCATION}" || true

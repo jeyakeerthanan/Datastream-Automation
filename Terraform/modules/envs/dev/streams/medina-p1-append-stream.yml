@@ -1,0 +1,20 @@
+stream:
+  id: dev-medina-p1-append
+  displayName: dev-medina-p1-append
+  desiredState: PAUSED
+
+sourceConnectionProfileKey: medina
+destinationConnectionProfileKey: bq
+
+cdc:
+  method: CHANGE_TABLES
+  maxConcurrentCdcTasks: 1
+  maxConcurrentBackfillTasks: 1
+
+bigquery:
+  streamWriteMode: APPEND_ONLY
+  dataFreshness: 900s
+
+tables:
+  - schema: dbo
+    tables: [customers, orders]
