@@ -1,0 +1,11 @@
+key: medina
+profileId: dev-medina-sql-cp
+displayName: DEV Medina SQL Server CP
+
+sqlserver:
+  hostname: "10.0.0.10"
+  port: 1433
+  username: "cdc_user"
+  database: "MedinaDB"
+  passwordSecret: "medina_sql_pwd"
+

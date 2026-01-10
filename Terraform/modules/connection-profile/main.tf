@@ -1,11 +1,11 @@
 resource "google_datastream_connection_profile" "this" {
   provider = google-beta
 
-  project               = var.project_id
-  location              = var.location
+  project              = var.project_id
+  location             = var.location
   connection_profile_id = var.profile_id
-  display_name          = var.display_name
-  labels                = var.labels
+  display_name         = var.display_name
+  labels               = var.labels
 
   dynamic "sql_server_profile" {
     for_each = var.type == "SQLSERVER" ? [1] : []

@@ -1,18 +1,20 @@
 variable "project_id" { type = string }
 variable "location"   { type = string }
 
-variable "stream_id"    { type = string }
-variable "display_name" { type = string }
+variable "stream_id"     { type = string }
+variable "display_name"  { type = string }
+variable "labels"        { type = map(string) default = {} }
+variable "desired_state" { type = string }
 
-variable "labels" {
-  type    = map(string)
-  default = {}
+variable "source_connection_profile" {
+  type        = string
+  description = "Full name of source connection profile"
 }
 
-variable "source_connection_profile"      { type = string }
-variable "destination_connection_profile" { type = string }
-
-variable "desired_state" { type = string }
+variable "destination_connection_profile" {
+  type        = string
+  description = "Full name of destination connection profile"
+}
 
 variable "sqlserver_source_config" {
   type = object({
@@ -26,13 +28,13 @@ variable "sqlserver_source_config" {
       schema = string
       tables = list(string)
     }))
-    cdc_method = string
+    cdc_method = string # CHANGE_TABLES | TRANSACTION_LOGS
   })
 }
 
 variable "bigquery_destination_config" {
   type = object({
     data_freshness    = string
-    stream_write_mode = string # MERGE or APPEND_ONLY
+    stream_write_mode = string # MERGE | APPEND_ONLY
   })
 }

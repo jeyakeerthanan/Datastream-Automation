@@ -1,15 +1,17 @@
 variable "project_id" { type = string }
 variable "location"   { type = string }
-
-variable "profile_id"   { type = string }
+variable "profile_id" { type = string }
 variable "display_name" { type = string }
+variable "labels" { type = map(string) default = {} }
 
-variable "labels" {
-  type    = map(string)
-  default = {}
+variable "type" {
+  type        = string
+  description = "SQLSERVER | BIGQUERY"
+  validation {
+    condition     = contains(["SQLSERVER", "BIGQUERY"], var.type)
+    error_message = "type must be SQLSERVER or BIGQUERY"
+  }
 }
-
-variable "type" { type = string } # SQLSERVER or BIGQUERY
 
 variable "sqlserver" {
   type = object({
@@ -24,5 +26,5 @@ variable "sqlserver" {
 
 variable "bigquery" {
   type    = map(string)
-  default = null
+  default = {}
 }

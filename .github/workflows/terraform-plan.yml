@@ -19,12 +19,9 @@ jobs:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
 
-      # Optional; keep if your plan needs passwords to fully render diffs.
+      # Map keys MUST match YAML passwordSecret values (e.g., medina_sql_pwd, d365_sql_pwd)
       TF_VAR_sql_passwords: >-
-        {
-          "MEDINA_SQL_PASSWORD":"${{ secrets.MEDINA_SQL_PASSWORD }}",
-          "D365_SQL_PASSWORD":"${{ secrets.D365_SQL_PASSWORD }}"
-        }
+        {"medina_sql_pwd":"${{ secrets.MEDINA_SQL_PASSWORD }}","d365_sql_pwd":"${{ secrets.D365_SQL_PASSWORD }}"}
 
     steps:
       - uses: actions/checkout@v4
@@ -35,16 +32,21 @@ jobs:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.5
 
       - name: Terraform Init
         working-directory: terraform/envs/dev
         run: |
-          terraform init \
+          terraform init -upgrade=false \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="prefix=datastream/dev"
+
+      - name: Terraform Format Check
+        working-directory: terraform/envs/dev
+        run: terraform fmt -check -recursive
 
       - name: Terraform Validate
         working-directory: terraform/envs/dev
@@ -52,5 +54,4 @@ jobs:
 
       - name: Terraform Plan
         working-directory: terraform/envs/dev
-        run: terraform plan -var-file="dev.tfvars"
-
+        run: terraform plan -var-file="dev.tfvars" -no-color
